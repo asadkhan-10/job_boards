@@ -1,10 +1,35 @@
-.venv
-venv
-__pycache__
-*.pyc
+
+# Python
+__pycache__/
+*.py[cod]
 *.pyo
-*.pyd
 .Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Environment variables
 .env
 
+# pytest
+.pytest_cache/
+htmlcov/
+.coverage
 
+# Alembic
+alembic/versions/*.pyc
+
+# VS Code
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.log
