@@ -26,8 +26,10 @@ class Job(Base):
     salary_max = Column(Integer)
     job_type = Column(String, nullable=False)
     status = Column(String, nullable=False, server_default="open")
-    employer_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     created_at = Column(TIMESTAMP(timezone=True), server_default=text("now()"))
+    employer_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)  # nullable for external jobs
+    external_id = Column(String, unique=True, nullable=True)  # Adzuna job ID
+    source = Column(String, nullable=False, server_default="internal")  # "internal" or "adzuna"
 
 
 class Application(Base):

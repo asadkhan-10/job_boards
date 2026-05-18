@@ -38,8 +38,7 @@ class JobCreate(BaseModel):
     salary_min: Optional[int] = None
     salary_max: Optional[int] = None
     job_type: JobType
-    class Config:
-        from_attributes = True
+   
 
 
 class JobOut(BaseModel):
@@ -53,7 +52,9 @@ class JobOut(BaseModel):
     job_type: JobType
     created_at: datetime
     status: JobStatus
-    employer_id: int
+    employer_id: Optional[int] = None
+    source: str
+    external_id: Optional[str] = None
     class Config:
         from_attributes = True
     
@@ -65,6 +66,7 @@ class JobUpdate(BaseModel):
     salary_min: Optional[int] = None
     salary_max: Optional[int] = None
     job_type: Optional[JobType] = None
+    status: Optional[JobStatus] = None
 
 # application schemas
 class ApplicationCreate(BaseModel):
@@ -82,4 +84,4 @@ class ApplicationOut(BaseModel):
         from_attributes = True
         
 class ApplicationStatusUpdate(BaseModel):
-    status: Optional[ApplicationStatus] = None
+    status: ApplicationStatus
