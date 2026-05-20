@@ -1,5 +1,7 @@
 # app/schemas.py
 
+from re import L
+
 from pydantic import BaseModel, EmailStr # type: ignore
 from datetime import datetime
 from typing import Optional
@@ -9,9 +11,11 @@ from .enums import JobStatus, UserRole, JobType, ApplicationStatus
 class Token(BaseModel):
     access_token: str
     token_type: str
+    role : UserRole
 
 class TokenData(BaseModel):
     id: Optional[int] = None
+    role: Optional[UserRole] = None
 
 # User schemas
     
