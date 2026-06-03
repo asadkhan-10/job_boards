@@ -77,7 +77,7 @@ def update_job(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
 
     job_query.update(
-        job_update.model_dump(exclude_unset=True),
+        job_update.model_dump(exclude_unset=True),  # type: ignore
         synchronize_session=False
     )
     db.commit()
