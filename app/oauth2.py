@@ -1,11 +1,11 @@
 from jose import JWTError, jwt
 from datetime import datetime, timedelta, timezone
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session 
 
 from . import schemas
 from . import models,database
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi import Depends, HTTPException, status 
+from fastapi.security import OAuth2PasswordBearer 
 from .config import settings
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
@@ -31,7 +31,7 @@ def verify_access_token(token: str, credentials_exception):
             raise credentials_exception
         if role is None:
             raise credentials_exception
-        token_data = schemas.TokenData(id=id, role=role)
+        token_data = schemas.TokenData(id=id, role=role) #type: ignore
     except JWTError:
         raise credentials_exception
     return token_data
