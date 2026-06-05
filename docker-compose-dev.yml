@@ -1,0 +1,33 @@
+services:
+  api:
+    build: .
+    depends_on:
+      - postgres
+    volumes:
+      - ./:/usr/src/app
+    ports:
+      - "8000:8000"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      - database_hostname=postgres
+      - database_port=5432
+      - database_password=${database_password}
+      - database_name=${database_name}
+      - database_username=${database_username}
+      - secret_key=${secret_key}
+      - algorithm=HS256
+      - access_token_expire_minutes=30
+
+  postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_PASSWORD=${database_password}
+      - POSTGRES_USER=${database_username}
+      - POSTGRES_DB=${database_name}
+    volumes:
+      - postgres-db:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+
+volumes:
+  postgres-db:
