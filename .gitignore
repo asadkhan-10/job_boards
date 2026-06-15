@@ -1,35 +1,34 @@
-
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-.Python
-*.egg-info/
-dist/
-build/
+# Environment
+.env
+.env.*
 
 # Virtual environment
 .venv/
 venv/
-env/
 
-# Environment variables
-.env
+# Logs
+logs/
 
-# pytest
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Pytest
 .pytest_cache/
-htmlcov/
-.coverage
 
-# Alembic
-alembic/versions/*.pyc
+# Pyenv
+.python-version
 
 # VS Code
 .vscode/
 
 # OS
 .DS_Store
-Thumbs.db
 
-# Docker
-*.log
+# Distribution
+dist/
+build/
+*.egg-info/
