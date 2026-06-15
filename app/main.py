@@ -11,4 +11,4 @@ app.include_router(applications.router)
 
 @app.get("/")
 def root():
-    return {"message": "Job Board API is running"}
+    return {"message": "Job Board API is running!"}
