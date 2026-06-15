@@ -32,7 +32,7 @@ def test_register_duplicate_email(client):
     client.post("/users/", json=user_data)
     res = client.post("/users/", json=user_data)
     assert res.status_code == status.HTTP_409_CONFLICT
-    assert res.json()["detail"] == "Email already registered"
+    assert res.json()["message"] == "Email already registered"
 
 
 def test_register_invalid_role(client):
