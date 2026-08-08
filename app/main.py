@@ -2,23 +2,28 @@
 import sys
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
-from loguru import logger 
+from loguru import logger
 from .routers import users, auth, jobs, applications
+from .request_id import RequestIDMiddleware
 
 # --- Loguru configuration ---
 logger.remove()  # remove the default handler
 
+# default value for request_id so log calls outside a request
+# (e.g. startup logs) don't throw a KeyError on the format string
+logger.configure(extra={"request_id": "-"})
+
 logger.add(
     sys.stdout,
     level="INFO",
-    format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {module}:{function}:{line} | {message}",
+    format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {extra[request_id]} | {module}:{function}:{line} | {message}",
     colorize=True
 )
 
 logger.add(
     "logs/app.log",
     level="INFO",
-    format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {module}:{function}:{line} | {message}",
+    format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {extra[request_id]} | {module}:{function}:{line} | {message}",
     rotation="10 MB",
     retention="7 days",
     compression="zip"
@@ -26,6 +31,8 @@ logger.add(
 
 # --- App ---
 app = FastAPI(title="Job Board API")
+
+
 
 app.include_router(users.router)
 app.include_router(auth.router)
@@ -41,6 +48,7 @@ async def log_requests(request: Request, call_next):
     logger.info(f"Completed: {request.method} {request.url} | Status: {response.status_code}")
     return response
 
+app.add_middleware(RequestIDMiddleware)
 
 # --- Exception handlers ---
 @app.exception_handler(HTTPException)
