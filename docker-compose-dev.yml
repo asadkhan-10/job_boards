@@ -3,6 +3,7 @@ services:
     build: .
     depends_on:
       - postgres
+      - redis
     volumes:
       - ./:/usr/src/app
     ports:
@@ -17,6 +18,7 @@ services:
       - secret_key=${secret_key}
       - algorithm=HS256
       - access_token_expire_minutes=30
+      - redis_url=redis://redis:6379/0
 
   postgres:
     image: postgres:15
@@ -28,6 +30,49 @@ services:
       - postgres-db:/var/lib/postgresql/data
     ports:
       - "5433:5432"
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  celery_worker:
+    build: .
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./:/usr/src/app
+    command: celery -A app.celery_app.celery_app worker --loglevel=info
+    environment:
+      - database_hostname=postgres
+      - database_port=5432
+      - database_password=${database_password}
+      - database_name=${database_name}
+      - database_username=${database_username}
+      - secret_key=${secret_key}
+      - algorithm=HS256
+      - access_token_expire_minutes=30
+      - redis_url=redis://redis:6379/0
+
+  celery_beat:
+    build: .
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./:/usr/src/app
+    command: celery -A app.celery_app.celery_app beat --loglevel=info
+    environment:
+      - database_hostname=postgres
+      - database_port=5432
+      - database_password=${database_password}
+      - database_name=${database_name}
+      - database_username=${database_username}
+      - secret_key=${secret_key}
+      - algorithm=HS256
+      - access_token_expire_minutes=30
+      - redis_url=redis://redis:6379/0
 
 volumes:
   postgres-db:

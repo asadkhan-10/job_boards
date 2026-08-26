@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from .. import models, schemas, oauth2
 from ..database import get_db
 from ..enums import UserRole
+from ..tasks import send_application_email_task
 
 router = APIRouter(prefix="/applications", tags=["Applications"])
 
@@ -51,6 +52,7 @@ def apply(
             detail="You have already applied for this job"
         )
     db.refresh(new_application)
+    send_application_email_task.delay(new_application.id)
     return new_application
 
 

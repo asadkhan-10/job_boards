@@ -3,6 +3,7 @@ services:
     image: asadkhn10/job-boards-api:latest
     depends_on:
       - postgres
+      - redis
     ports:
       - "80:8000"
     environment:
@@ -14,6 +15,7 @@ services:
       - secret_key=${secret_key}
       - algorithm=HS256
       - access_token_expire_minutes=30
+      - redis_url=redis://redis:6379/0
     restart: unless-stopped
 
   postgres:
@@ -24,6 +26,46 @@ services:
       - POSTGRES_DB=${database_name}
     volumes:
       - postgres-db:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  celery_worker:
+    image: asadkhn10/job-boards-api:latest
+    depends_on:
+      - postgres
+      - redis
+    command: celery -A app.celery_app.celery_app worker --loglevel=info
+    environment:
+      - database_hostname=postgres
+      - database_port=5432
+      - database_password=${database_password}
+      - database_name=${database_name}
+      - database_username=${database_username}
+      - secret_key=${secret_key}
+      - algorithm=HS256
+      - access_token_expire_minutes=30
+      - redis_url=redis://redis:6379/0
+    restart: unless-stopped
+
+  celery_beat:
+    image: asadkhn10/job-boards-api:latest
+    depends_on:
+      - postgres
+      - redis
+    command: celery -A app.celery_app.celery_app beat --loglevel=info
+    environment:
+      - database_hostname=postgres
+      - database_port=5432
+      - database_password=${database_password}
+      - database_name=${database_name}
+      - database_username=${database_username}
+      - secret_key=${secret_key}
+      - algorithm=HS256
+      - access_token_expire_minutes=30
+      - redis_url=redis://redis:6379/0
     restart: unless-stopped
 
 volumes:

@@ -1,0 +1,40 @@
+# Version control
+.git
+.gitignore
+
+# Python virtual environment
+.venv
+venv/
+env/
+
+# Python cache/build artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.pytest_cache/
+
+# Environment & secrets — critical, never bake these into an image
+.env
+.env.*
+!.env.example
+
+# Celery Beat schedule file (from celery_beat container writes)
+celerybeat-schedule
+
+# IDE/editor
+.vscode/
+.idea/
+*.swp
+
+# OS junk
+.DS_Store
+
+# Docs and non-runtime files
+README.md
+*.md
+
+# Test artifacts
+.coverage
+htmlcov/

@@ -29,6 +29,7 @@ class Job(Base):
     job_type = Column(SAEnum(JobType), nullable=False)
     status = Column(SAEnum(JobStatus), nullable=False, server_default=JobStatus.open.value)
     created_at = Column(TIMESTAMP(timezone=True), server_default=text("now()"))
+    expires_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text("now() + interval '30 days'"))
     employer_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     external_id = Column(String, unique=True, nullable=True)
     source = Column(String, nullable=False, server_default="internal")
