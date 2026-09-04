@@ -1,5 +1,5 @@
 # app/models.py
-from sqlalchemy import Column, Integer, String, Text, TIMESTAMP, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Text, TIMESTAMP, ForeignKey, UniqueConstraint, Index
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.sql.expression import text
 from .database import Base
@@ -30,9 +30,13 @@ class Job(Base):
     status = Column(SAEnum(JobStatus), nullable=False, server_default=JobStatus.open.value)
     created_at = Column(TIMESTAMP(timezone=True), server_default=text("now()"))
     expires_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text("now() + interval '30 days'"))
-    employer_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    employer_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     external_id = Column(String, unique=True, nullable=True)
     source = Column(String, nullable=False, server_default="internal")
+
+    __table_args__ = (
+        Index("ix_jobs_status_created_at", "status", "created_at"),
+    )
 
 
 class Application(Base):
@@ -40,7 +44,7 @@ class Application(Base):
 
     id = Column(Integer, primary_key=True, nullable=False)
     job_id = Column(Integer, ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False)
-    candidate_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    candidate_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     cover_letter = Column(Text)
     status = Column(SAEnum(ApplicationStatus), nullable=False, server_default=ApplicationStatus.pending.value)
     created_at = Column(TIMESTAMP(timezone=True), server_default=text("now()"))

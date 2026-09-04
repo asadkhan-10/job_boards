@@ -207,7 +207,7 @@ This currently covers testing only — there is no automated deploy stage yet.
 | `access_token_expire_minutes` | Token expiry duration |
 
 ---
-
+"
 
 ## Author
 
