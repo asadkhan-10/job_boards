@@ -112,3 +112,22 @@ def update_application_status(
     db.commit()
     db.refresh(application)
     return application
+
+
+@router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def withdraw_application(
+    id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_candidate),
+):
+    application = db.query(models.Application).filter(
+        models.Application.id == id
+    ).first()
+    if not application:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found")
+    if application.candidate_id != current_user.id:  # type: ignore
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to withdraw this application")
+
+    db.delete(application)
+    db.commit()
+    return None
