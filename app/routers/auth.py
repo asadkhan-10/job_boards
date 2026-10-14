@@ -1,15 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException, status  # type: ignore
+from fastapi import APIRouter, Depends, HTTPException, Request, status  # type: ignore
 from sqlalchemy.orm import Session  # type: ignore
 from fastapi.security import OAuth2PasswordRequestForm # type: ignore
 from .. import models, database, utils, oauth2
 from .. import schemas
+from ..limiter import limiter
 
 
 router = APIRouter(tags=["Authentication"])
 
 
 @router.post("/login", response_model=schemas.Token)
+@limiter.limit("5/minute")
 def login(
+    request: Request,
     user_credentials: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(database.get_db),
 ):

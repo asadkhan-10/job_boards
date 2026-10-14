@@ -1,13 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status  # type: ignore
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from .. import  models, schemas,utils
 from ..database import get_db
 from ..oauth2 import get_current_user
+from ..limiter import limiter
+
+
 
 router = APIRouter(prefix="/users", tags=["Users"])
 @router.post("/", response_model=schemas.UserOut, status_code=status.HTTP_201_CREATED)
-def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+@limiter.limit("10/hour")
+def create_user(request: Request, user: schemas.UserCreate, db: Session = Depends(get_db)):
     
     hashed_password = utils.hash_password(user.password)
     user.password = hashed_password

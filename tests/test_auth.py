@@ -60,3 +60,14 @@ def test_login_wrong_email(client):
 def test_login_missing_fields(client):
     res = client.post("/login", data={})
     assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+def test_login_rate_limited(client, rate_limit_on):
+    for _ in range(5):
+        res = client.post("/login", data={"username": "x@test.com", "password": "wrong"})
+        assert res.status_code == status.HTTP_403_FORBIDDEN
+
+    res = client.post("/login", data={"username": "x@test.com", "password": "wrong"})
+    assert res.status_code == status.HTTP_429_TOO_MANY_REQUESTS
+    assert res.json()["error"] is True
+    

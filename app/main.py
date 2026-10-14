@@ -5,6 +5,8 @@ from fastapi.responses import JSONResponse
 from loguru import logger
 from .routers import users, auth, jobs, applications
 from .request_id import RequestIDMiddleware
+from slowapi.errors import RateLimitExceeded
+from .limiter import limiter
 
 # --- Loguru configuration ---
 logger.remove()  # remove the default handler
@@ -31,6 +33,7 @@ logger.add(
 
 # --- App ---
 app = FastAPI(title="Job Board API")
+app.state.limiter = limiter
 
 
 
@@ -63,6 +66,17 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         }
     )
 
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    logger.warning(f"Rate limit hit on {request.method} {request.url} | {exc.detail}")
+    return JSONResponse(
+        status_code=429,
+        content={
+            "error": True,
+            "message": "Too many requests, please try again later",
+            "status_code": 429,
+        },
+    )
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):

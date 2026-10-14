@@ -7,6 +7,8 @@ from app.main import app
 from app.database import Base, get_db
 from app.config import settings
 from app.oauth2 import create_access_token
+from app.limiter import limiter
+
 
 TEST_DATABASE_URL = (
     f"postgresql://{settings.database_username}:"
@@ -25,7 +27,20 @@ def setup_database():
     Base.metadata.create_all(bind=engine)
     yield
     Base.metadata.drop_all(bind=engine)
+@pytest.fixture(autouse=True)
+def disable_rate_limit():
+    limiter.enabled = False
+    yield
+    limiter.enabled = True
 
+
+@pytest.fixture()
+def rate_limit_on():
+    limiter.reset()
+    limiter.enabled = True
+    yield
+    limiter.reset()
+    limiter.enabled = False
 
 @pytest.fixture()
 def db():
