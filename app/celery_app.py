@@ -20,4 +20,8 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.cleanup_expired_jobs_task",
         "schedule": crontab(hour=3, minute=0),  # every day at 03:00 UTC
     },
+    "worker-heartbeat": {
+        "task": "app.tasks.heartbeat_task",
+        "schedule": crontab(minute="*/5"),
+    },
 }

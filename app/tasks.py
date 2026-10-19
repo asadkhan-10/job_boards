@@ -5,7 +5,12 @@ from app.celery_app import celery_app
 from app.database import SessionLocal
 from app import models
 from app.enums import JobStatus
+import logging
+import urllib.request
 
+from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 def send_email(to: str, subject: str, body: str) -> None:
     """
@@ -77,3 +82,19 @@ def cleanup_expired_jobs_task():
         raise
     finally:
         db.close()
+
+
+
+
+
+@celery_app.task
+def heartbeat_task():
+    if not settings.healthcheck_url:
+        return "skipped"
+    try:
+        with urllib.request.urlopen(settings.healthcheck_url, timeout=10):
+            pass
+    except Exception as exc:
+        logger.warning("heartbeat ping failed: %s", exc)
+        return "failed"
+    return "ok"
