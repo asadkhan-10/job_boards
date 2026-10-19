@@ -73,6 +73,7 @@ services:
       - algorithm=HS256
       - access_token_expire_minutes=30
       - redis_url=redis://redis:6379/0
+      - healthcheck_url=${healthcheck_url}
     restart: unless-stopped
 
   celery_beat:
