@@ -125,9 +125,9 @@ jobs:
           set -e
           cd ~/app
           docker compose -f docker-compose-prod.yml pull
-          docker compose -f docker-compose-prod.yml run --rm -T --no-deps api alembic upgrade head
+          docker compose -f docker-compose-prod.yml run --rm -T --no-deps api alembic upgrade head < /dev/null
           docker compose -f docker-compose-prod.yml up -d --wait
-          docker compose -f docker-compose-prod.yml exec -T nginx nginx -s reload
+          docker compose -f docker-compose-prod.yml exec -T nginx nginx -s reload < /dev/null
           EOF
 
       - name: Smoke test
