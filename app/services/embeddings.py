@@ -17,6 +17,9 @@ MAX_RETRIES = 5
 class EmbeddingError(Exception):
     pass
 
+class EmbeddingRateLimited(EmbeddingError):
+    """Voyage kept returning 429. Transient, so a task retry makes sense."""
+
 
 def embed(texts: list[str], input_type: str = "document") -> list[list[float]]:
     if input_type not in ("document", "query"):
@@ -46,6 +49,6 @@ def embed(texts: list[str], input_type: str = "document") -> list[list[float]]:
                 logger.warning("Voyage 429, retrying in %ss", wait)
                 time.sleep(wait)
         else:
-            raise EmbeddingError("Voyage rate limit: retries exhausted")
+            raise EmbeddingRateLimited("Voyage rate limit: retries exhausted")
 
     return vectors
