@@ -21,7 +21,8 @@ class EmbeddingRateLimited(EmbeddingError):
     """Voyage kept returning 429. Transient, so a task retry makes sense."""
 
 
-def embed(texts: list[str], input_type: str = "document") -> list[list[float]]:
+def embed(texts: list[str], input_type: str = "document", 
+          max_retries: int = MAX_RETRIES) -> list[list[float]]:
     if input_type not in ("document", "query"):
         raise ValueError("input_type must be 'document' or 'query'")
     if not settings.voyage_api_key:
@@ -34,7 +35,7 @@ def embed(texts: list[str], input_type: str = "document") -> list[list[float]]:
 
     for i in range(0, len(texts), BATCH_SIZE):
         batch = texts[i : i + BATCH_SIZE]
-        for attempt in range(MAX_RETRIES):
+        for attempt in range(max_retries):
             try:
                 result = client.embed(
                     batch,
@@ -45,10 +46,12 @@ def embed(texts: list[str], input_type: str = "document") -> list[list[float]]:
                 vectors.extend(result.embeddings)
                 break
             except RateLimitError:
-                wait = 2 ** attempt
-                logger.warning("Voyage 429, retrying in %ss", wait)
-                time.sleep(wait)
-        else:
-            raise EmbeddingRateLimited("Voyage rate limit: retries exhausted")
+                if attempt < max_retries - 1:
+                    wait = 2 ** attempt
+                    logger.warning("Voyage 429, retrying in %ss", wait)
+                    time.sleep(wait)
+
+                else:
+                    raise EmbeddingRateLimited("Voyage rate limit: retries exhausted")
 
     return vectors

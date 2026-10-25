@@ -1,5 +1,5 @@
 # app/routers/jobs.py
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from sqlalchemy.orm import Session
 from typing import Optional
 from .. import models, schemas, oauth2
@@ -7,6 +7,8 @@ from ..database import get_db
 from ..enums import UserRole, JobStatus, JobType
 from loguru import logger
 from ..tasks import embed_job_task
+from ..limiter import limiter
+from ..services.embeddings import embed, EmbeddingError
 
 router = APIRouter(prefix="/jobs", tags=["Jobs"])
 
@@ -62,6 +64,47 @@ def get_jobs(
 
     return query.offset(skip).limit(limit).all()
 
+@router.get("/search", response_model=list[schemas.JobOut])
+@limiter.limit("10/minute")
+def search_jobs(
+    request: Request,
+    q: str = Query(..., max_length=300),
+    location: Optional[str] = Query(None, max_length=100),
+    job_type: Optional[JobType] = Query(None),
+    limit: int = Query(10, ge=1, le=20),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(oauth2.get_current_user),
+):
+    q = q.strip()
+    if len(q) < 2:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Query must be at least 2 characters",
+        )
+
+    try:
+        query_vector = embed([q], input_type="query", max_retries=2)[0]
+    except EmbeddingError as e:
+        logger.error(f"search embedding failed: {type(e).__name__}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Search is temporarily unavailable",
+        )
+
+    query = db.query(models.Job).filter(
+        models.Job.status == JobStatus.open,
+        models.Job.embedding.isnot(None),
+    )
+    if location:
+        query = query.filter(models.Job.location.ilike(f"%{location}%"))
+    if job_type:
+        query = query.filter(models.Job.job_type == job_type)
+
+    return (
+        query.order_by(models.Job.embedding.cosine_distance(query_vector))
+        .limit(limit)
+        .all()
+    )
 
 @router.get("/{id}", response_model=schemas.JobOut)
 def get_job(id: int, db: Session = Depends(get_db)):
