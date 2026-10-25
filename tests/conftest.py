@@ -126,3 +126,17 @@ def test_job(employer_client):
     })
     assert res.status_code == 201
     return res.json()
+
+
+
+@pytest.fixture(autouse=True)
+def fake_embed_task(monkeypatch):
+    from app.routers import jobs
+    calls = []
+
+    class FakeTask:
+        def delay(self, job_id):
+            calls.append(job_id)
+
+    monkeypatch.setattr(jobs, "embed_job_task", FakeTask())
+    return calls

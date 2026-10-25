@@ -4,7 +4,8 @@ from sqlalchemy import Enum as SAEnum
 from sqlalchemy.sql.expression import text
 from .database import Base
 from .enums import UserRole, JobType, JobStatus, ApplicationStatus
-
+from sqlalchemy.orm import deferred
+from pgvector.sqlalchemy import Vector
 
 class User(Base):
     __tablename__ = "users"
@@ -33,6 +34,8 @@ class Job(Base):
     employer_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     external_id = Column(String, unique=True, nullable=True)
     source = Column(String, nullable=False, server_default="internal")
+    embedding = deferred(Column(Vector(1024), nullable=True))
+    embedding_text_hash = Column(String(64), nullable=True)
 
     __table_args__ = (
         Index("ix_jobs_status_created_at", "status", "created_at"),

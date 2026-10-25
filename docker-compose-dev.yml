@@ -54,6 +54,7 @@ services:
       - algorithm=HS256
       - access_token_expire_minutes=30
       - redis_url=redis://redis:6379/0
+      - voyage_api_key=${voyage_api_key}
 
   celery_beat:
     build: .
