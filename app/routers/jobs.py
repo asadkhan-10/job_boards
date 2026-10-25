@@ -5,8 +5,18 @@ from typing import Optional
 from .. import models, schemas, oauth2
 from ..database import get_db
 from ..enums import UserRole, JobStatus, JobType
+from loguru import logger
+from ..tasks import embed_job_task
 
 router = APIRouter(prefix="/jobs", tags=["Jobs"])
+
+def _enqueue_embedding(job_id: int) -> None:
+    # The job is already committed. A queue outage must not fail the request;
+    # the backfill script repairs any job that missed its task.
+    try:
+        embed_job_task.delay(job_id)
+    except Exception as e:
+        logger.error(f"could not enqueue embedding for job {job_id}: {type(e).__name__}")
 
 
 def require_employer(current_user: models.User = Depends(oauth2.get_current_user)):
@@ -28,6 +38,7 @@ def create_job(
     db.add(new_job)
     db.commit()
     db.refresh(new_job)
+    _enqueue_embedding(new_job.id)
     return new_job
 
 
@@ -82,6 +93,7 @@ def update_job(
     )
     db.commit()
     db.refresh(job)
+    _enqueue_embedding(job.id)
     return job
 
 
