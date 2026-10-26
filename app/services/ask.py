@@ -1,5 +1,9 @@
-# app/services/ask.py
 from pydantic import BaseModel, ValidationError
+from dataclasses import dataclass
+
+from loguru import logger
+
+from app.services import llm
 
 MAX_DESC_CHARS = 1200
 
@@ -87,3 +91,45 @@ def verify_citations(
         seen.add(job_id)
         (valid if job_id in retrieved_ids else invalid).append(job_id)
     return valid, invalid
+
+
+NO_JOBS_ANSWER = "I couldn't find any matching open jobs for that question."
+UNVERIFIED_ANSWER = "I couldn't verify an answer from the current listings."
+
+
+@dataclass
+class AskResult:
+    answer: str
+    cited_job_ids: list[int]
+
+
+def generate_answer(question: str, jobs: list) -> AskResult:
+    if not jobs:
+        return AskResult(NO_JOBS_ANSWER, [])
+
+    messages = build_messages(question, jobs)
+    parsed = None
+    for attempt in (1, 2):
+        reply = llm.chat(
+            messages, response_format=RESPONSE_FORMAT, reasoning_effort="low"
+        )
+        logger.info(
+            f"ask llm call prompt_tokens={reply.prompt_tokens} "
+            f"completion_tokens={reply.completion_tokens} "
+            f"latency_ms={reply.latency_ms} attempt={attempt}"
+        )
+        try:
+            parsed = parse_answer(reply.content)
+            break
+        except AnswerParseError:
+            logger.warning(f"ask: unparseable model reply on attempt {attempt}")
+
+    if parsed is None:
+        raise AnswerParseError("no valid reply after retry")
+
+    valid, invalid = verify_citations(parsed.cited_job_ids, {j.id for j in jobs})
+    if invalid:
+        logger.warning(f"ask: model cited ids that were not retrieved: {invalid}")
+    if parsed.cited_job_ids and not valid:
+        return AskResult(UNVERIFIED_ANSWER, [])
+    return AskResult(parsed.answer, valid)
