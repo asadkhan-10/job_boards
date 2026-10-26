@@ -10,6 +10,10 @@ from ..tasks import embed_job_task
 from ..limiter import limiter
 from ..services.embeddings import EmbeddingError
 from ..services.search import retrieve_jobs
+from ..services.ask import generate_answer, AnswerParseError
+from ..services.llm import LLMUnavailable, LLMNotConfigured
+
+
 
 router = APIRouter(prefix="/jobs", tags=["Jobs"])
 
@@ -93,6 +97,41 @@ def search_jobs(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Search is temporarily unavailable",
         )
+
+@router.post("/ask", response_model=schemas.AskResponse)
+@limiter.limit("3/minute")
+def ask_jobs(
+    request: Request,
+    body: schemas.AskRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(oauth2.get_current_user),
+):
+    try:
+        jobs = retrieve_jobs(db, body.question, limit=5)
+    except EmbeddingError as e:
+        logger.error(f"ask embedding failed: {type(e).__name__}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Search is temporarily unavailable",
+        )
+
+    try:
+        result = generate_answer(body.question, jobs)
+    except (LLMUnavailable, LLMNotConfigured, AnswerParseError) as e:
+        logger.error(f"ask answer failed: {type(e).__name__}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Answers are temporarily unavailable",
+        )
+
+    by_id = {j.id: j for j in jobs}
+    return {
+        "answer": result.answer,
+        "cited_jobs": [
+            {"id": by_id[i].id, "title": by_id[i].title, "company": by_id[i].company}
+            for i in result.cited_job_ids
+        ],
+    }
 
 @router.get("/{id}", response_model=schemas.JobOut)
 def get_job(id: int, db: Session = Depends(get_db)):
