@@ -61,3 +61,18 @@ def test_missing_key_raises_not_configured(monkeypatch):
 
     with pytest.raises(llm.LLMNotConfigured):
         llm.chat([{"role": "user", "content": "hello"}])
+
+
+def test_optional_params_sent_only_when_set(monkeypatch):
+    completions = FakeCompletions(resp=fake_response())
+    monkeypatch.setattr(llm, "_client", lambda: fake_client(completions))
+    msgs = [{"role": "user", "content": "hello"}]
+
+    llm.chat(msgs)
+    assert "response_format" not in completions.kwargs
+    assert "reasoning_effort" not in completions.kwargs
+
+    fmt = {"type": "json_object"}
+    llm.chat(msgs, response_format=fmt, reasoning_effort="low")
+    assert completions.kwargs["response_format"] == fmt
+    assert completions.kwargs["reasoning_effort"] == "low"

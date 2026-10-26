@@ -33,16 +33,27 @@ def _client() -> Groq:
         raise LLMNotConfigured("GROQ_API_KEY is not set")
     return Groq(api_key=settings.groq_api_key, timeout=20.0, max_retries=0)
 
-
-def chat(messages: list[dict], *, temperature: float = 0.2) -> LLMReply:
+def chat(
+    messages: list[dict],
+    *,
+    temperature: float = 0.2,
+    response_format: dict | None = None,
+    reasoning_effort: str | None = None,
+) -> LLMReply:
     client = _client()
+    kwargs: dict = {
+        "model": settings.groq_model,
+        "messages": messages,
+        "temperature": temperature,
+    }
+    if response_format is not None:
+        kwargs["response_format"] = response_format
+    if reasoning_effort is not None:
+        kwargs["reasoning_effort"] = reasoning_effort
+
     start = time.perf_counter()
     try:
-        resp = client.chat.completions.create(
-            model=settings.groq_model,
-            messages=messages,
-            temperature=temperature,
-        )
+        resp = client.chat.completions.create(**kwargs)
     except APIError as exc:
         logger.exception("Groq call failed")
         raise LLMUnavailable("LLM provider call failed") from exc
