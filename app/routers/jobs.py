@@ -8,7 +8,8 @@ from ..enums import UserRole, JobStatus, JobType
 from loguru import logger
 from ..tasks import embed_job_task
 from ..limiter import limiter
-from ..services.embeddings import embed, EmbeddingError
+from ..services.embeddings import EmbeddingError
+from ..services.search import retrieve_jobs
 
 router = APIRouter(prefix="/jobs", tags=["Jobs"])
 
@@ -83,28 +84,15 @@ def search_jobs(
         )
 
     try:
-        query_vector = embed([q], input_type="query", max_retries=2)[0]
+        return retrieve_jobs(
+            db, q, location=location, job_type=job_type, limit=limit
+        )
     except EmbeddingError as e:
         logger.error(f"search embedding failed: {type(e).__name__}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Search is temporarily unavailable",
         )
-
-    query = db.query(models.Job).filter(
-        models.Job.status == JobStatus.open,
-        models.Job.embedding.isnot(None),
-    )
-    if location:
-        query = query.filter(models.Job.location.ilike(f"%{location}%"))
-    if job_type:
-        query = query.filter(models.Job.job_type == job_type)
-
-    return (
-        query.order_by(models.Job.embedding.cosine_distance(query_vector))
-        .limit(limit)
-        .all()
-    )
 
 @router.get("/{id}", response_model=schemas.JobOut)
 def get_job(id: int, db: Session = Depends(get_db)):
