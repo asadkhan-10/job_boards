@@ -1,0 +1,63 @@
+# tests/test_llm.py
+from types import SimpleNamespace
+
+import httpx
+import pytest
+from groq import APIConnectionError
+
+from app.config import settings
+from app.services import llm
+
+
+class FakeCompletions:
+    def __init__(self, resp=None, exc=None):
+        self.resp = resp
+        self.exc = exc
+        self.kwargs = None
+
+    def create(self, **kwargs):
+        self.kwargs = kwargs
+        if self.exc:
+            raise self.exc
+        return self.resp
+
+
+def fake_client(completions):
+    return SimpleNamespace(chat=SimpleNamespace(completions=completions))
+
+
+def fake_response(text="hello", prompt=11, completion=7):
+    return SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content=text))],
+        usage=SimpleNamespace(prompt_tokens=prompt, completion_tokens=completion),
+    )
+
+
+def test_chat_returns_text_tokens_and_latency(monkeypatch):
+    completions = FakeCompletions(resp=fake_response("hi there", 11, 7))
+    monkeypatch.setattr(llm, "_client", lambda: fake_client(completions))
+
+    reply = llm.chat([{"role": "user", "content": "hello"}])
+
+    assert reply.content == "hi there"
+    assert reply.prompt_tokens == 11
+    assert reply.completion_tokens == 7
+    assert reply.latency_ms >= 0
+    assert completions.kwargs["model"] == settings.groq_model
+
+
+def test_provider_error_becomes_llm_unavailable(monkeypatch):
+    request = httpx.Request("POST", "https://api.groq.com/test")
+    completions = FakeCompletions(exc=APIConnectionError(request=request))
+    monkeypatch.setattr(llm, "_client", lambda: fake_client(completions))
+
+    with pytest.raises(llm.LLMUnavailable):
+        llm.chat([{"role": "user", "content": "hello"}])
+
+
+def test_missing_key_raises_not_configured(monkeypatch):
+    monkeypatch.setattr(settings, "groq_api_key", "")
+    llm._client.cache_clear()
+
+    with pytest.raises(llm.LLMNotConfigured):
+        llm.chat([{"role": "user", "content": "hello"}])
