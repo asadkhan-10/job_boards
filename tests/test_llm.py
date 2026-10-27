@@ -178,3 +178,25 @@ def test_chat_calls_provider_exactly_once(monkeypatch):
     llm.chat([{"role": "user", "content": "x"}])
 
     assert len(calls) == 1
+
+from loguru import logger
+
+
+def test_provider_error_text_is_never_logged(monkeypatch):
+    logged = []
+    sink_id = logger.add(lambda m: logged.append(str(m)), level="DEBUG")
+    try:
+        for text, expected in [
+            ("Error code: 400 - tool_use_failed SECRET_QUESTION_TEXT", llm.LLMToolCallRejected),
+            ("Error code: 400 - other problem SECRET_QUESTION_TEXT", llm.LLMUnavailable),
+        ]:
+            client = _client_raising(_bad_request(text))
+            monkeypatch.setattr(llm, "_client", lambda c=client: c)
+            with pytest.raises(expected):
+                llm.chat([{"role": "user", "content": "x"}])
+    finally:
+        logger.remove(sink_id)
+
+    output = "".join(logged)
+    assert "llm" in output                    # something was logged
+    assert "SECRET_QUESTION_TEXT" not in output

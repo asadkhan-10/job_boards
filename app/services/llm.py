@@ -1,13 +1,11 @@
 
-import logging
 import time
 from dataclasses import dataclass, field
 from functools import lru_cache
 from groq import APIError, BadRequestError, Groq  # type: ignore
-
+from loguru import logger
 from app.config import settings
 
-logger = logging.getLogger(__name__)
 
 
 class LLMNotConfigured(Exception):
@@ -81,13 +79,15 @@ def chat(
         resp = client.chat.completions.create(**kwargs)
     except BadRequestError as exc:
         if "tool_use_failed" in str(exc):
-            logger.warning("Model produced an invalid tool call")  # no traceback: it contains user-derived text
+            logger.warning("llm: model produced an invalid tool call")
             raise LLMToolCallRejected("invalid tool call from model") from exc
-        logger.exception("Groq call failed")
+        logger.error(f"llm call failed: {type(exc).__name__} status={exc.status_code}")
         raise LLMUnavailable("LLM provider call failed") from exc
     except APIError as exc:
-        logger.exception("Groq call failed")
+        status = getattr(exc, "status_code", None)  # connection errors and timeouts have none
+        logger.error(f"llm call failed: {type(exc).__name__} status={status}")
         raise LLMUnavailable("LLM provider call failed") from exc
+    
 
     msg = resp.choices[0].message
     tool_calls = [

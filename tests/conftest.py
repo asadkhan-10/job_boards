@@ -8,7 +8,7 @@ from app.database import Base, get_db
 from app.config import settings
 from app.oauth2 import create_access_token
 from app.limiter import limiter
-
+from app import models
 
 TEST_DATABASE_URL = (
     f"postgresql://{settings.database_username}:"
@@ -140,3 +140,24 @@ def fake_embed_task(monkeypatch):
 
     monkeypatch.setattr(jobs, "embed_job_task", FakeTask())
     return calls
+
+
+@pytest.fixture()
+def candidate(db, test_candidate):
+    return db.get(models.User, test_candidate["id"])
+
+
+@pytest.fixture()
+def employer(db, test_employer):
+    return db.get(models.User, test_employer["id"])
+
+
+@pytest.fixture()
+def other_candidate(db, client):
+    res = client.post("/users/", json={
+        "email": "other_candidate@test.com",
+        "password": "password123",
+        "role": "candidate",
+    })
+    assert res.status_code == 201
+    return db.get(models.User, res.json()["id"])

@@ -6,27 +6,6 @@ from app.services import agent_tools
 from app.services.agent_tools import ToolContext, ToolError, run_tool, tool_specs, tools_for
 
 
-@pytest.fixture()
-def candidate(db, test_candidate):
-    return db.get(models.User, test_candidate["id"])
-
-
-@pytest.fixture()
-def employer(db, test_employer):
-    return db.get(models.User, test_employer["id"])
-
-
-@pytest.fixture()
-def other_candidate(db, client):
-    res = client.post("/users/", json={
-        "email": "other_candidate@test.com",
-        "password": "password123",
-        "role": "candidate",
-    })
-    assert res.status_code == 201
-    return db.get(models.User, res.json()["id"])
-
-
 def _apply(db, job_id, user):
     app_row = models.Application(job_id=job_id, candidate_id=user.id)
     db.add(app_row)
