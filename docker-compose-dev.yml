@@ -19,7 +19,9 @@ services:
       - algorithm=HS256
       - access_token_expire_minutes=30
       - redis_url=redis://redis:6379/0
-
+      - groq_api_key=${groq_api_key}
+      - groq_model=${groq_model:-openai/gpt-oss-120b}
+      
   postgres:
     image: pgvector/pgvector:pg15
     environment:

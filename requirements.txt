@@ -19,3 +19,4 @@ redis==5.0.1
 slowapi==0.1.9
 voyageai==0.5.0
 pgvector==0.5.1
+groq==1.7.0

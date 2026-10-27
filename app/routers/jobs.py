@@ -8,7 +8,12 @@ from ..enums import UserRole, JobStatus, JobType
 from loguru import logger
 from ..tasks import embed_job_task
 from ..limiter import limiter
-from ..services.embeddings import embed, EmbeddingError
+from ..services.embeddings import EmbeddingError
+from ..services.search import retrieve_jobs
+from ..services.ask import generate_answer, AnswerParseError
+from ..services.llm import LLMUnavailable, LLMNotConfigured
+
+
 
 router = APIRouter(prefix="/jobs", tags=["Jobs"])
 
@@ -83,7 +88,9 @@ def search_jobs(
         )
 
     try:
-        query_vector = embed([q], input_type="query", max_retries=2)[0]
+        return retrieve_jobs(
+            db, q, location=location, job_type=job_type, limit=limit
+        )
     except EmbeddingError as e:
         logger.error(f"search embedding failed: {type(e).__name__}")
         raise HTTPException(
@@ -91,20 +98,40 @@ def search_jobs(
             detail="Search is temporarily unavailable",
         )
 
-    query = db.query(models.Job).filter(
-        models.Job.status == JobStatus.open,
-        models.Job.embedding.isnot(None),
-    )
-    if location:
-        query = query.filter(models.Job.location.ilike(f"%{location}%"))
-    if job_type:
-        query = query.filter(models.Job.job_type == job_type)
+@router.post("/ask", response_model=schemas.AskResponse)
+@limiter.limit("3/minute")
+def ask_jobs(
+    request: Request,
+    body: schemas.AskRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(oauth2.get_current_user),
+):
+    try:
+        jobs = retrieve_jobs(db, body.question, limit=5)
+    except EmbeddingError as e:
+        logger.error(f"ask embedding failed: {type(e).__name__}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Search is temporarily unavailable",
+        )
 
-    return (
-        query.order_by(models.Job.embedding.cosine_distance(query_vector))
-        .limit(limit)
-        .all()
-    )
+    try:
+        result = generate_answer(body.question, jobs)
+    except (LLMUnavailable, LLMNotConfigured, AnswerParseError) as e:
+        logger.error(f"ask answer failed: {type(e).__name__}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Answers are temporarily unavailable",
+        )
+
+    by_id = {j.id: j for j in jobs}
+    return {
+        "answer": result.answer,
+        "cited_jobs": [
+            {"id": by_id[i].id, "title": by_id[i].title, "company": by_id[i].company}
+            for i in result.cited_job_ids
+        ],
+    }
 
 @router.get("/{id}", response_model=schemas.JobOut)
 def get_job(id: int, db: Session = Depends(get_db)):

@@ -1,5 +1,5 @@
 import pytest
-
+from app.services import job_embedding, search
 from app import models
 from app.enums import JobStatus
 from app.routers import jobs
@@ -22,9 +22,8 @@ def fake_voyage(monkeypatch):
         return [fake_vector(t) for t in texts]
 
     monkeypatch.setattr(job_embedding, "embed", _embed)
-    monkeypatch.setattr(jobs, "embed", _embed)
+    monkeypatch.setattr(search, "embed", _embed)
     return calls
-
 
 def add_job(client, db, title, location="Lahore", embed=True):
     res = client.post("/jobs/", json={
@@ -86,7 +85,7 @@ def test_provider_failure_returns_generic_503(employer_client, monkeypatch):
     def boom(*args, **kwargs):
         raise EmbeddingError("voyage secret details")
 
-    monkeypatch.setattr(jobs, "embed", boom)
+    monkeypatch.setattr(search, "embed", boom)
     res = employer_client.get("/jobs/search", params={"q": "python"})
     assert res.status_code == 503
     assert "voyage" not in res.text.lower()
