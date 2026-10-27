@@ -7,6 +7,10 @@ from app import models
 from app.services import llm
 from app.services.embeddings import EmbeddingError
 
+from fastapi.testclient import TestClient
+
+from app.main import app
+
 
 class FakeLLM:
     def __init__(self, script):
@@ -163,3 +167,65 @@ def test_rate_limit_applies(candidate_client, rate_limit_on, monkeypatch):
 
     assert statuses[0] == 200
     assert 429 in statuses
+
+
+
+
+class _SetClientIP:
+    """Test-only ASGI wrapper: takes the source IP from the X-Test-IP header.
+    Works on any Starlette version, unlike TestClient(client=...)."""
+
+    def __init__(self, inner):
+        self.inner = inner
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            for key, value in scope["headers"]:
+                if key == b"x-test-ip":
+                    scope["client"] = (value.decode(), 5000)
+        await self.inner(scope, receive, send)
+
+
+def _client_from(ip, like):
+    """Same user and DB override, different source IP."""
+    c = TestClient(_SetClientIP(app))
+    c.headers = {
+        **c.headers,
+        "Authorization": like.headers["Authorization"],
+        "X-Test-IP": ip,
+    }
+    return c
+
+
+MSG = {"message": "hello agent"}
+
+
+def test_per_ip_limit_is_three_per_minute(candidate_client, rate_limit_on, monkeypatch):
+    _install(monkeypatch, [_reply("ok")] * 10)
+
+    statuses = [candidate_client.post(URL, json=MSG).status_code for _ in range(5)]
+
+    assert statuses == [200, 200, 200, 429, 429]
+
+
+def test_global_bucket_caps_all_callers(candidate_client, rate_limit_on, monkeypatch):
+    _install(monkeypatch, [_reply("ok")] * 10)
+
+    statuses = [
+        _client_from(f"10.0.0.{i}", candidate_client).post(URL, json=MSG).status_code
+        for i in range(7)
+    ]
+
+    assert statuses == [200] * 5 + [429, 429]
+
+
+def test_abuser_does_not_lock_out_other_users(candidate_client, rate_limit_on, monkeypatch):
+    """Locks in the decorator order: rejected requests must not drain the global bucket."""
+    _install(monkeypatch, [_reply("ok")] * 10)
+    abuser = _client_from("9.9.9.9", candidate_client)
+    for _ in range(10):
+        abuser.post(URL, json=MSG)
+
+    other = _client_from("2.2.2.2", candidate_client)
+
+    assert other.post(URL, json=MSG).status_code == 200

@@ -11,9 +11,20 @@ from app.services.llm import LLMNotConfigured, LLMUnavailable
 
 router = APIRouter(prefix="/agent", tags=["Agent"])
 
+PER_IP_LIMIT = "3/minute;30/day"
+GLOBAL_LIMIT = "5/minute;100/day"  # shared by all callers, protects the Groq quota
+
+
+def _global_key(request: Request) -> str:
+    return "agent-global"
+
 
 @router.post("/chat", response_model=schemas.AgentChatResponse)
-@limiter.limit("3/minute")  # placeholder, tuned in brick 11
+# ORDER MATTERS: slowapi checks the decorator closest to the function first.
+# Per-IP must stay below the global one, so a request rejected by its own IP
+# limit never uses up the shared bucket.
+@limiter.limit(GLOBAL_LIMIT, key_func=_global_key)
+@limiter.limit(PER_IP_LIMIT)
 def agent_chat(
     request: Request,
     body: schemas.AgentChatRequest,
