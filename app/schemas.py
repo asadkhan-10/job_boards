@@ -105,3 +105,11 @@ class CitedJob(BaseModel):
 class AskResponse(BaseModel):
     answer: str
     cited_jobs: list[CitedJob]
+
+class AgentChatRequest(BaseModel):
+    message: str = Field(min_length=2, max_length=300)
+
+
+class AgentChatResponse(BaseModel):
+    answer: str
+    tools_used: list[str]

@@ -3,7 +3,7 @@ import sys
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from loguru import logger
-from .routers import users, auth, jobs, applications
+from .routers import users, auth, jobs, applications, agent
 from .request_id import RequestIDMiddleware
 from slowapi.errors import RateLimitExceeded
 from .limiter import limiter
@@ -41,7 +41,7 @@ app.include_router(users.router)
 app.include_router(auth.router)
 app.include_router(jobs.router)
 app.include_router(applications.router)
-
+app.include_router(agent.router)
 
 # --- Middleware: log every request ---
 @app.middleware("http")
