@@ -3,7 +3,6 @@ import json
 
 import pytest
 
-from app.limiter import limiter
 from app.services import ask, job_embedding, llm, search
 from app.services.embeddings import DIMENSION, EmbeddingError
 
@@ -13,12 +12,6 @@ def fake_vector(text):
     v[0 if "python" in text.lower() else 1] = 1.0
     return v
 
-
-@pytest.fixture(autouse=True)
-def reset_rate_limit():
-    limiter.reset()
-    yield
-    limiter.reset()
 
 
 @pytest.fixture()
@@ -134,8 +127,9 @@ def test_embedding_failure_returns_generic_503(employer_client, monkeypatch):
     assert res.status_code == 503
     assert "voyage" not in res.text.lower()
 
-
-def test_rate_limit_kicks_in_on_the_fourth_call(employer_client, fake_voyage):
+def test_rate_limit_kicks_in_on_the_fourth_call(
+    employer_client, fake_voyage, rate_limit_on
+):
     codes = [
         employer_client.post("/jobs/ask", json={"question": "python?"}).status_code
         for _ in range(4)
