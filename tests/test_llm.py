@@ -76,3 +76,55 @@ def test_optional_params_sent_only_when_set(monkeypatch):
     llm.chat(msgs, response_format=fmt, reasoning_effort="low")
     assert completions.kwargs["response_format"] == fmt
     assert completions.kwargs["reasoning_effort"] == "low"
+
+
+from types import SimpleNamespace
+
+from app.services import llm
+
+
+def _fake_client(message):
+    resp = SimpleNamespace(
+        choices=[SimpleNamespace(message=message)],
+        usage=SimpleNamespace(prompt_tokens=10, completion_tokens=5),
+    )
+    create = lambda **kwargs: resp
+    return SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=create))
+    ), create
+
+
+def test_chat_parses_tool_calls(monkeypatch):
+    msg = SimpleNamespace(
+        content=None,
+        tool_calls=[SimpleNamespace(
+            id="call_1",
+            function=SimpleNamespace(name="get_job", arguments='{"job_id": 3}'),
+        )],
+    )
+    client, _ = _fake_client(msg)
+    monkeypatch.setattr(llm, "_client", lambda: client)
+
+    reply = llm.chat([{"role": "user", "content": "x"}], tools=[{"type": "function"}])
+
+    assert reply.tool_calls == [llm.ToolCall("call_1", "get_job", '{"job_id": 3}')]
+    assert reply.as_message()["tool_calls"][0]["function"]["name"] == "get_job"
+
+
+def test_chat_sends_tools_only_when_given(monkeypatch):
+    seen = {}
+    msg = SimpleNamespace(content="hi", tool_calls=None)
+    resp = SimpleNamespace(
+        choices=[SimpleNamespace(message=msg)],
+        usage=SimpleNamespace(prompt_tokens=1, completion_tokens=1),
+    )
+
+    def create(**kwargs):
+        seen.update(kwargs)
+        return resp
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    monkeypatch.setattr(llm, "_client", lambda: client)
+
+    llm.chat([{"role": "user", "content": "x"}])
+    assert "tools" not in seen

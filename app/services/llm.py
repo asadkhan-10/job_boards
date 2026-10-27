@@ -1,9 +1,8 @@
 
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
-
 from groq import APIError, Groq # type: ignore
 
 from app.config import settings
@@ -20,12 +19,33 @@ class LLMUnavailable(Exception):
 
 
 @dataclass
+class ToolCall:
+    id: str
+    name: str
+    arguments: str  # raw JSON string from the model, not yet validated
+
+
+@dataclass
 class LLMReply:
     content: str
     prompt_tokens: int
     completion_tokens: int
     latency_ms: int
+    tool_calls: list[ToolCall] = field(default_factory=list)
 
+    def as_message(self) -> dict:
+        """The assistant turn, in the shape the next request must carry."""
+        msg: dict = {"role": "assistant", "content": self.content or None}
+        if self.tool_calls:
+            msg["tool_calls"] = [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {"name": tc.name, "arguments": tc.arguments},
+                }
+                for tc in self.tool_calls
+            ]
+        return msg
 
 @lru_cache
 def _client() -> Groq:
@@ -39,6 +59,7 @@ def chat(
     temperature: float = 0.2,
     response_format: dict | None = None,
     reasoning_effort: str | None = None,
+    tools: list[dict] | None = None,
 ) -> LLMReply:
     client = _client()
     kwargs: dict = {
@@ -50,6 +71,8 @@ def chat(
         kwargs["response_format"] = response_format
     if reasoning_effort is not None:
         kwargs["reasoning_effort"] = reasoning_effort
+    if tools:
+        kwargs["tools"] = tools
 
     start = time.perf_counter()
     try:
@@ -59,9 +82,16 @@ def chat(
         raise LLMUnavailable("LLM provider call failed") from exc
 
     usage = resp.usage
+    msg = resp.choices[0].message
+    tool_calls = [
+        ToolCall(id=tc.id, name=tc.function.name, arguments=tc.function.arguments or "{}")
+        for tc in (getattr(msg, "tool_calls", None) or [])
+    ]
+    usage = resp.usage
     return LLMReply(
-        content=resp.choices[0].message.content or "",
+        content=msg.content or "",
         prompt_tokens=usage.prompt_tokens if usage else 0,
         completion_tokens=usage.completion_tokens if usage else 0,
         latency_ms=int((time.perf_counter() - start) * 1000),
+        tool_calls=tool_calls,
     )
