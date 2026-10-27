@@ -128,3 +128,53 @@ def test_chat_sends_tools_only_when_given(monkeypatch):
 
     llm.chat([{"role": "user", "content": "x"}])
     assert "tools" not in seen
+import httpx
+from groq import BadRequestError
+
+
+def _bad_request(text: str) -> BadRequestError:
+    req = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
+    resp = httpx.Response(400, request=req, json={"error": {"message": text}})
+    return BadRequestError(text, response=resp, body=None)
+
+
+def _client_raising(exc):
+    def create(**kwargs):
+        raise exc
+    return SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+
+
+def test_tool_use_failed_is_its_own_error(monkeypatch):
+    client = _client_raising(_bad_request("Error code: 400 - tool_use_failed"))
+    monkeypatch.setattr(llm, "_client", lambda: client)
+
+    with pytest.raises(llm.LLMToolCallRejected):
+        llm.chat([{"role": "user", "content": "x"}])
+
+
+def test_other_400_stays_generic(monkeypatch):
+    client = _client_raising(_bad_request("Error code: 400 - something else"))
+    monkeypatch.setattr(llm, "_client", lambda: client)
+
+    with pytest.raises(llm.LLMUnavailable) as exc:
+        llm.chat([{"role": "user", "content": "x"}])
+    assert not isinstance(exc.value, llm.LLMToolCallRejected)
+
+def test_chat_calls_provider_exactly_once(monkeypatch):
+    calls = []
+    msg = SimpleNamespace(content="hi", tool_calls=None)
+    resp = SimpleNamespace(
+        choices=[SimpleNamespace(message=msg)],
+        usage=SimpleNamespace(prompt_tokens=1, completion_tokens=1),
+    )
+
+    def create(**kwargs):
+        calls.append(kwargs)
+        return resp
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    monkeypatch.setattr(llm, "_client", lambda: client)
+
+    llm.chat([{"role": "user", "content": "x"}])
+
+    assert len(calls) == 1

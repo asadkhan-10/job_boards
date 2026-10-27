@@ -3,7 +3,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from functools import lru_cache
-from groq import APIError, Groq # type: ignore
+from groq import APIError, BadRequestError, Groq  # type: ignore
 
 from app.config import settings
 
@@ -16,6 +16,9 @@ class LLMNotConfigured(Exception):
 
 class LLMUnavailable(Exception):
     """The provider failed, timed out, or rate limited us."""
+
+class LLMToolCallRejected(LLMUnavailable):
+    """The model produced a tool call that failed the provider's schema check."""
 
 
 @dataclass
@@ -73,15 +76,19 @@ def chat(
         kwargs["reasoning_effort"] = reasoning_effort
     if tools:
         kwargs["tools"] = tools
-
     start = time.perf_counter()
     try:
         resp = client.chat.completions.create(**kwargs)
+    except BadRequestError as exc:
+        if "tool_use_failed" in str(exc):
+            logger.warning("Model produced an invalid tool call")  # no traceback: it contains user-derived text
+            raise LLMToolCallRejected("invalid tool call from model") from exc
+        logger.exception("Groq call failed")
+        raise LLMUnavailable("LLM provider call failed") from exc
     except APIError as exc:
         logger.exception("Groq call failed")
         raise LLMUnavailable("LLM provider call failed") from exc
 
-    usage = resp.usage
     msg = resp.choices[0].message
     tool_calls = [
         ToolCall(id=tc.id, name=tc.function.name, arguments=tc.function.arguments or "{}")
