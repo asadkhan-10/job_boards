@@ -7,6 +7,8 @@ from app import models
 from app.enums import JobStatus
 import logging
 import urllib.request
+from app.services.embeddings import EmbeddingRateLimited
+from app.services.job_embedding import embed_job
 
 from app.config import settings
 
@@ -98,3 +100,28 @@ def heartbeat_task():
         logger.warning("heartbeat ping failed: %s", exc)
         return "failed"
     return "ok"
+
+
+
+
+@celery_app.task(
+    autoretry_for=(EmbeddingRateLimited,),
+    retry_backoff=True,
+    retry_backoff_max=300,
+    retry_jitter=True,
+    max_retries=5,
+    acks_late=True,
+    soft_time_limit=120,
+)
+def embed_job_task(job_id: int):
+    db = SessionLocal()
+    try:
+        status = embed_job(db, job_id)
+        logger.info(f"embed_job_task job {job_id}: {status}")
+        return {"status": status, "job_id": job_id}
+    except Exception as e:
+        db.rollback()
+        logger.error(f"embed_job_task failed for job {job_id}: {type(e).__name__}")
+        raise
+    finally:
+        db.close()

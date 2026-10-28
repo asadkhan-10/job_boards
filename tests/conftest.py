@@ -1,14 +1,14 @@
 # tests/conftest.py
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from app.main import app
 from app.database import Base, get_db
 from app.config import settings
 from app.oauth2 import create_access_token
 from app.limiter import limiter
-
+from app import models
 
 TEST_DATABASE_URL = (
     f"postgresql://{settings.database_username}:"
@@ -24,6 +24,8 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_database():
+    with engine.begin() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
     Base.metadata.create_all(bind=engine)
     yield
     Base.metadata.drop_all(bind=engine)
@@ -124,3 +126,38 @@ def test_job(employer_client):
     })
     assert res.status_code == 201
     return res.json()
+
+
+
+@pytest.fixture(autouse=True)
+def fake_embed_task(monkeypatch):
+    from app.routers import jobs
+    calls = []
+
+    class FakeTask:
+        def delay(self, job_id):
+            calls.append(job_id)
+
+    monkeypatch.setattr(jobs, "embed_job_task", FakeTask())
+    return calls
+
+
+@pytest.fixture()
+def candidate(db, test_candidate):
+    return db.get(models.User, test_candidate["id"])
+
+
+@pytest.fixture()
+def employer(db, test_employer):
+    return db.get(models.User, test_employer["id"])
+
+
+@pytest.fixture()
+def other_candidate(db, client):
+    res = client.post("/users/", json={
+        "email": "other_candidate@test.com",
+        "password": "password123",
+        "role": "candidate",
+    })
+    assert res.status_code == 201
+    return db.get(models.User, res.json()["id"])

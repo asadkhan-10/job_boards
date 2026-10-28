@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
     redis_url: str = "redis://localhost:6379/0"
     healthcheck_url: str = ""
+    voyage_api_key: str = ""
+    groq_api_key: str = ""
+    groq_model: str = "openai/gpt-oss-120b"
 
     class Config:
         env_file = ".env"

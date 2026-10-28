@@ -2,7 +2,7 @@
 
 from re import L
 
-from pydantic import BaseModel, EmailStr # type: ignore
+from pydantic import BaseModel, ConfigDict, EmailStr, Field # type: ignore
 from datetime import datetime
 from typing import Optional
 from .enums import JobStatus, UserRole, JobType, ApplicationStatus
@@ -89,3 +89,27 @@ class ApplicationOut(BaseModel):
         
 class ApplicationStatusUpdate(BaseModel):
     status: ApplicationStatus
+
+
+class AskRequest(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+    question: str = Field(min_length=2, max_length=300)
+
+
+class CitedJob(BaseModel):
+    id: int
+    title: str
+    company: str
+
+
+class AskResponse(BaseModel):
+    answer: str
+    cited_jobs: list[CitedJob]
+
+class AgentChatRequest(BaseModel):
+    message: str = Field(min_length=2, max_length=300)
+
+
+class AgentChatResponse(BaseModel):
+    answer: str
+    tools_used: list[str]
