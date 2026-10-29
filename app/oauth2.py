@@ -1,4 +1,5 @@
-from jose import JWTError, jwt
+import jwt
+from jwt import PyJWTError
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session 
 
@@ -32,7 +33,7 @@ def verify_access_token(token: str, credentials_exception):
         if role is None:
             raise credentials_exception
         token_data = schemas.TokenData(id=id, role=role) #type: ignore
-    except JWTError:
+    except PyJWTError:
         raise credentials_exception
     return token_data
 
